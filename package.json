@@ -1,0 +1,1 @@
+{"description":"Fan World — an artist cross-domain audience and tour-city agent built on Qloo's taste graph. Qloo Agentic Hackathon entry.","engines":{"node":">=18"},"license":"MIT","name":"fan-world","scripts":{"start":"node server.js"},"type":"module","version":"0.1.0"}
