@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fan World — Qloo Agentic Hackathon</title>
+<style>
+  body { font-family: system-ui, -apple-system, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; color: #1a1a1a; }
+  h1 { font-size: 1.8rem; margin-bottom: 0.2rem; }
+  p.sub { color: #555; margin-top: 0; }
+  form { display: grid; gap: 0.75rem; margin: 1.5rem 0; }
+  label { font-weight: 600; }
+  input { width: 100%; padding: 0.6rem; font-size: 1rem; }
+  button { padding: 0.7rem 1.2rem; font-size: 1rem; cursor: pointer; }
+  section { margin-top: 2rem; }
+  .aff { font-variant-numeric: tabular-nums; color: #555; }
+  details { margin-top: 1rem; }
+  .note { background: #fff8e1; padding: 0.75rem 1rem; border-left: 4px solid #f2c200; }
+  footer { margin-top: 3rem; color: #666; font-size: 0.9rem; }
+</style>
+</head>
+<body>
+<h1>Fan World</h1>
+<p class="sub">An artist cross-domain audience and tour-city agent, built on Qloo's taste graph. For a small label / manager — not the artist alone.</p>
+
+<form id="form">
+  <div>
+    <label for="artist">Artist</label>
+    <input id="artist" value="Mac DeMarco">
+  </div>
+  <div>
+    <label for="comparables">Comparables (comma-separated)</label>
+    <input id="comparables" value="Homeshake, King Krule">
+  </div>
+  <div>
+    <label for="goal">Release / tour goal</label>
+    <input id="goal" value="Book a club tour and plan release partnerships">
+  </div>
+  <button type="submit">Generate brief</button>
+</form>
+
+<div id="status"></div>
+<div id="brief"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+let lastBrief = null;
+
+function list(items) {
+  return "<ul>" + items.map((a) => `<li>${a.name} <span class="aff">${a.affinity != null ? "(" + a.affinity.toFixed(3) + ")" : ""}</span></li>`).join("") + "</ul>";
+}
+
+document.getElementById("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const artist = $("#artist").value.trim();
+  const comparables = $("#comparables").value.trim();
+  const goal = $("#goal").value.trim();
+  $("#status").textContent = "Resolving artist in Qloo, then running Insights across artist, brand, movie, place, podcast and book…";
+  $("#brief").innerHTML = "";
+  try {
+    const res = await fetch(`/api/brief?artist=${encodeURIComponent(artist)}&comparables=${encodeURIComponent(comparables)}&goal=${encodeURIComponent(goal)}`);
+    const brief = await res.json();
+    if (!res.ok) throw new Error(brief.error || "Brief failed");
+    lastBrief = brief;
+    $("#status").textContent = "";
+    const a = brief.audiencePortrait.affinities;
+    $("#brief").innerHTML = `
+      <section><h2>1. Audience portrait — ${brief.artist}</h2>
+        <p>Goal: ${brief.goal}</p>
+        <p>Comparables resolved: ${brief.comparables.join(", ") || "none"}</p>
+        <h3>Adjacent artists (bill-mates)</h3>${list(a.artist)}
+        <h3>Brands</h3>${list(a.brand)}
+        <h3>Movies</h3>${list(a.movie)}
+        <h3>Places</h3>${list(a.place)}
+        <h3>Podcasts</h3>${list(a.podcast)}
+        <h3>Books</h3>${list(a.book)}
+      </section>
+      <section><h2>2. Scene Map — top 3 cities</h2>
+        ${brief.sceneMap.map((s) => `
+          <h3>${s.city}</h3>
+          <p>Bill-mates: ${s.billmates.join(", ")}</p>
+          <p>Venues / places: ${s.venues.join("; ")}</p>
+        `).join("")}
+        <p class="note">Places are city-filtered via Qloo filter.location.query. Bill-mates and local media are global affinities in this scaffold, not yet city-filtered.</p>
+      </section>
+      <section><h2>3. Partnership / placement targets</h2>
+        <p>${brief.partnershipTargets.join(", ")}</p>
+      </section>
+      <section><h2>4. Labelled hypotheses</h2>
+        <ul>${brief.hypotheses.map((h) => `<li><strong>[${h.confidence}]</strong> ${h.claim} <em>Evidence: ${h.evidence}</em></li>`).join("")}</ul>
+      </section>
+      <section>
+        <button id="exportMd">Export as Markdown</button>
+        <details><summary>Data trail (every Qloo query behind this brief)</summary>
+          <ul>${brief.dataTrail.map((t) => `<li><code>${t.query}</code> → ${t.outputSection}</li>`).join("")}</ul>
+        </details>
+        <p class="note">${brief.notes.join("<br>")}</p>
+      </section>`;
+    document.getElementById("exportMd").addEventListener("click", () => {
+      const md = "# Fan World brief — " + brief.artist + "\n\nGoal: " + brief.goal + "\n\n## Partnership targets\n" + brief.partnershipTargets.map((t) => "- " + t).join("\n") + "\n\n## Hypotheses\n" + brief.hypotheses.map((h) => `- [${h.confidence}] ${h.claim} (Evidence: ${h.evidence})`).join("\n") + "\n\n## Data trail\n" + brief.dataTrail.map((t) => `- ${t.query} → ${t.outputSection}`).join("\n") + "\n";
+      const blob = new Blob([md], { type: "text/markdown" });
+      const aEl = document.createElement("a");
+      aEl.href = URL.createObjectURL(blob);
+      aEl.download = "fan-world-brief.md";
+      aEl.click();
+    });
+  } catch (err) {
+    $("#status").textContent = "Error: " + err.message;
+  }
+});
+</script>
+<footer>Fan World — Qloo Agentic Hackathon entry (scaffold). Every brief section cites Qloo affinity data; nothing here is generically generatable without Qloo. Scene Map is inspired by the idea of a cultural scene as a shared ecosystem.</footer>
+</body>
+</html>
